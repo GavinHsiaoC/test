@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LLM SDK Chat Lab</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="panel config-panel reveal">
+        <div class="panel-header">
+          <p class="eyebrow">SDK Driven Playground</p>
+          <h1>LLM Chat Lab</h1>
+          <p class="subtle">
+            所有大模型请求都由后端统一调用自研 SDK，页面只负责组装参数与展示响应。
+          </p>
+        </div>
+
+        <section class="group">
+          <div class="group-title">
+            <h2>连接配置</h2>
+            <span>本地浏览器保存</span>
+          </div>
+          <label>
+            厂家 / Provider
+            <input id="provider" list="provider-list" placeholder="openai / deepseek / qwen / gemini" />
+          </label>
+          <datalist id="provider-list">
+            <option value="openai"></option>
+            <option value="qwen"></option>
+            <option value="deepseek"></option>
+            <option value="kimi"></option>
+            <option value="glm"></option>
+            <option value="doubao"></option>
+            <option value="ernie"></option>
+            <option value="mimo"></option>
+            <option value="minimax"></option>
+            <option value="gemini"></option>
+          </datalist>
+          <label>
+            模型名称
+            <input id="model" placeholder="例如 gpt-4.1-mini / deepseek-chat / qwen-plus" />
+          </label>
+          <label>
+            调用地址 / Base URL
+            <input id="baseUrl" placeholder="例如 https://api.openai.com/v1" />
+          </label>
+          <label>
+            协议类型
+            <select id="protocol">
+              <option value="">自动</option>
+              <option value="openai_compatible">openai_compatible</option>
+              <option value="gemini">gemini</option>
+            </select>
+          </label>
+          <label>
+            API Key
+            <input id="apiKey" type="password" placeholder="输入你自己的 API Key" />
+          </label>
+          <label class="checkbox-row">
+            <input id="rememberApiKey" type="checkbox" />
+            <span>将 API Key 一并保存到当前浏览器</span>
+          </label>
+          <label class="checkbox-row">
+            <input id="stream" type="checkbox" checked />
+            <span>启用流式响应</span>
+          </label>
+        </section>
+
+        <section class="group">
+          <div class="group-title">
+            <h2>生成参数</h2>
+            <span>直接透传 SDK</span>
+          </div>
+          <div class="grid two">
+            <label>
+              Temperature
+              <input id="temperature" type="number" min="0" max="2" step="0.1" value="0.7" />
+            </label>
+            <label>
+              Top P
+              <input id="topP" type="number" min="0" max="1" step="0.05" value="1" />
+            </label>
+            <label>
+              Max Tokens
+              <input id="maxTokens" type="number" min="1" step="1" placeholder="1024" />
+            </label>
+            <label>
+              Timeout(s)
+              <input id="timeout" type="number" min="1" step="1" value="60" />
+            </label>
+            <label>
+              Max Retries
+              <input id="maxRetries" type="number" min="0" step="1" value="1" />
+            </label>
+          </div>
+          <label>
+            System Prompt
+            <textarea id="systemPrompt" rows="4" placeholder="例如：你是一位简洁、专业的中文助手"></textarea>
+          </label>
+        </section>
+
+        <section class="group">
+          <div class="group-title">
+            <h2>高级参数</h2>
+            <span>JSON 格式</span>
+          </div>
+          <label>
+            extra_headers
+            <textarea id="extraHeaders" rows="4" placeholder='{"X-Request-ID": "req-001"}'></textarea>
+          </label>
+          <label>
+            extra_body
+            <textarea id="extraBody" rows="4" placeholder='{"metadata": {"tenant_id": "demo"}}'></textarea>
+          </label>
+          <label>
+            provider_options
+            <textarea id="providerOptions" rows="4" placeholder='{"reasoning_effort": "medium"}'></textarea>
+          </label>
+        </section>
+
+        <div class="button-row">
+          <button id="saveConfig" class="secondary">保存配置</button>
+          <button id="clearConfig" class="ghost">清空配置</button>
+        </div>
+      </aside>
+
+      <main class="panel chat-panel reveal delay-1">
+        <header class="chat-header">
+          <div>
+            <p class="eyebrow">Conversation</p>
+            <h2>聊天测试页</h2>
+          </div>
+          <div class="header-actions">
+            <span id="statusBadge" class="badge">待命</span>
+            <button id="clearChat" class="ghost">清空会话</button>
+          </div>
+        </header>
+
+        <section id="messageList" class="message-list">
+          <article class="empty-state">
+            <h3>从这里开始试模型</h3>
+            <p>先填入厂商、模型、地址和 API Key，再发送第一条消息。</p>
+          </article>
+        </section>
+
+        <form id="composer" class="composer">
+          <label class="composer-label" for="promptInput">输入消息</label>
+          <textarea
+            id="promptInput"
+            rows="4"
+            placeholder="例如：请介绍一下这个 SDK 的设计目标，并用要点列出它支持的能力。"
+          ></textarea>
+          <div class="composer-actions">
+            <p class="subtle" id="composerHint">`Ctrl + Enter` 发送，流式模式下可中止输出。</p>
+            <div class="button-row">
+              <button id="stopStream" type="button" class="ghost" disabled>中止</button>
+              <button id="sendButton" type="submit">发送消息</button>
+            </div>
+          </div>
+        </form>
+      </main>
+
+      <aside class="panel trace-panel reveal delay-2">
+        <div class="panel-header small">
+          <p class="eyebrow">Telemetry</p>
+          <h2>请求与响应</h2>
+          <p class="subtle">这里显示最近一次调用的配置摘要、用量和错误信息，方便排查 SDK 调用。</p>
+        </div>
+
+        <section class="group">
+          <div class="group-title">
+            <h2>最近一次调用</h2>
+            <span>脱敏展示</span>
+          </div>
+          <pre id="traceOutput" class="trace-output">{
+  "hint": "发送一条消息后，这里会出现响应详情"
+}</pre>
+        </section>
+      </aside>
+    </div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
